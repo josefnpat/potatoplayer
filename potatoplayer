@@ -1,0 +1,71 @@
+#!/bin/bash
+
+CWD="${1:-`pwd`}"
+
+PLAYER_FILE=".player"
+CONFIG_LOCATION="~/.config/potatoplayer"
+CURRENT_FILE=".lastseen.tmp"
+WAIT=5
+
+PLAYER_MPLAYER='mplayer -fs "%s"'
+PLAYER_MPLAYER_EXISTS=`which mplayer 2> /dev/null`
+PLAYER_VLC="vlc -f --play-and-exit --no-loop --no-repeat '%s'"
+PLAYER_VLC_EXISTS=`which vlc 2> /dev/null`
+
+if [ "$PLAYER_MPLAYER_EXISTS" ]; then
+  PLAYER_DEFAULT=$PLAYER_MPLAYER
+elif [ "$PLAYER_VLC_EXISTS" ]; then
+  PLAYER_DEFAULT=$PLAYER_VLC
+else
+  echo "Error: could not find a suitable video player (mplayer,vlc)."
+  echo "You can supply a player adding a command to either:"
+  echo "$CWD/$PLAYER_FILE"
+  echo "$CONFIG_LOCATION/player"
+  exit 1
+fi
+
+PLAYER_DIR=`cat $CWD/$PLAYER_FILE 2> /dev/null`
+PLAYER_CONFIG=`cat $CONFIG_LOCATION/player 2> /dev/null`
+
+# Config over default
+PLAYER=${PLAYER_CONFIG:-$PLAYER_DEFAULT}
+# Current dir over config
+PLAYER=${PLAYER_DIR:-$PLAYER}
+
+CURRENT=`cat $CWD/$CURRENT_FILE 2> /dev/null`
+CURRENT=${CURRENT:-0}
+
+playlist_info ()
+{
+  CURRENT=$((CURRENT+1))
+  PLAYLIST=`ls -v "$CWD/"*.{mkv,avi,mp4,ogv} 2> /dev/null`
+  PLAYLIST_CUR=`ls -v "$CWD/"*.{mkv,avi,mp4,ogv} 2> /dev/null | sed -n ${CURRENT}p`
+}
+
+playlist_info
+
+while [ -n "$PLAYLIST_CUR" ]; do
+
+  if [ "$PLAYLIST_CUR" ]; then
+    echo "Playing [$CURRENT] : $PLAYLIST_CUR"
+    sleep 1
+    EXE=${PLAYER_DEFAULT//%s/$PLAYLIST_CUR}
+    eval $EXE > /dev/null 2>&1
+    echo "To stop playlist, use CTRL-C within $WAIT seconds."
+    sleep $WAIT
+    echo $CURRENT > "$CWD/"$CURRENT_FILE
+  fi
+
+  playlist_info
+
+done
+
+if [ "$PLAYLIST" ]; then
+  echo "Notice: Index is out of range of playlist."
+  echo "$CWD/$CURRENT_FILE has index $CURRENT."
+  echo "To start playlist over, remove the file."
+  exit 0
+else
+  echo "Could not find any files to play."
+  exit 2
+fi
